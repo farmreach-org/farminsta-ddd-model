@@ -1,56 +1,129 @@
 /* The DDD Cargo sample application modeled in CML. Note that we split the application into multiple bounded contexts. */
 ContextMap Farminsta {
-	contains ClaimsManagement
-	// contains VoyagePlanningContext
-	// contains LocationContext
+  contains AccountsContext
+  contains ServiceRequestContext
 
-	/* As Evans mentions in his book (Bounded Context chapter): The voyage planning can be seen as
-	 * separated bounded context. However, it still shares code with the booking application (ServiceRequestContext).
-	 * Thus, they are in a 'Shared-Kernel' relationship.
-	 */
-	// ServiceRequestContext [SK]<->[SK] VoyagePlanningContext
-
-	/* Note that the splitting of the LocationContext is not mentioned in the original DDD sample of Evans.
-	 * However, locations and the management around them, can somehow be seen as a separated concept which is used by other
-	 * bounded contexts. But this is just an example, since we want to demonstrate our DSL with multiple bounded contexts.
-	 */
-	// ServiceRequestContext [D]<-[U, OHS, PL] LocationContext
-
-	// VoyagePlanningContext [D]<-[U, OHS, PL] LocationContext
+  AccountsContext [SK]<->[SK] ServiceRequestContext
+// contains VoyagePlanningContext
+// contains LocationContext
+/* As Evans mentions in his book (Bounded Context chapter): The voyage planning can be seen as
+ * separated bounded context. However, it still shares code with the booking application (ServiceRequestContext).
+ * Thus, they are in a 'Shared-Kernel' relationship.
+ */
+// ServiceRequestContext [SK]<->[SK] VoyagePlanningContext
+/* Note that the splitting of the LocationContext is not mentioned in the original DDD sample of Evans.
+ * However, locations and the management around them, can somehow be seen as a separated concept which is used by other
+ * bounded contexts. But this is just an example, since we want to demonstrate our DSL with multiple bounded contexts.
+ */
+// ServiceRequestContext [D]<-[U, OHS, PL] LocationContext
+// VoyagePlanningContext [D]<-[U, OHS, PL] LocationContext
 }
 
-BoundedContext ClaimsManagement {
+BoundedContext AccountsContext {
+  type = FEATURE
+  knowledgeLevel = CONCRETE
+  implementationTechnology = "grpc"
   Application {
-    Service ClaimsApplicationService {
-      void submitClaim(@Claim claim);
-      void checkInsurance(@Claim claim);
-      void acceptClaim(@Claim claim);
-      void rejectClaim(@Claim claim);
+    Service AccountsService {
+      void InitiateLogin(@LoginRequest loginRequest);
+    }
+    Command InitiateLogin {
+      String phoneNumber
+    }
+    Command SubmitOTPAfterPhoneNumber {
+      String phoneNumber
+      String otp
+    }
+    Command SubmitFirstProfileInfo {
+      String personName
+      String accountName
+      String emailAddress
+    }
+    Command CreateUserAccount {
+      String phoneNumber
+    }
+    Command CreateCompanyAccount {
+      String phoneNumber
+      String companyName
+      String emailAddress
+    }
+    Command UpdateUserAccountInfo {
+      String phoneNumber
+      String personName
+    }
+    Command LogUserLogin {
+      String phoneNumber
+    }
+    Event SentOTP {
+      String phoneNumber
+      String otp
+    }
+    Event OTPVerified {
+      String phoneNumber
+    }
+    Event UserAccountCreated {
+      String phoneNumber
+    }
+    Event FirstProfileInfoSubmitted {
+      String personName
+      String accountName
+      String emailAddress
+    }
+    Event NewUserOTPVerified {
+      String phoneNumber
+    }
+    Flow NewUserFlow {
+      // Send OTP on login
+      command InitiateLogin emits event SentOTP
+      // Login/Signup flow 
+      command SubmitOTPAfterPhoneNumber emits event OTPVerified O NewUserOTPVerified
+      event OTPVerified triggers command LogUserLogin
+      event NewUserOTPVerified triggers command CreateUserAccount
+      command CreateUserAccount emits event UserAccountCreated
+      command SubmitFirstProfileInfo emits event FirstProfileInfoSubmitted
+      event FirstProfileInfoSubmitted triggers command CreateCompanyAccount
+      event FirstProfileInfoSubmitted triggers command UpdateUserAccountInfo
     }
   }
-  
-  Aggregate Claims {
-    Entity Claim {
+  Aggregate Accounts {
+    ValueObject LoginRequest {
+      String phoneNumber
+    }
+    ValueObject UserAccountId {
+      String id
+    }
+    ValueObject CompanyAccountId {
+      String id
+    }
+    Entity UserAccount {
       aggregateRoot
-      long claimId
-      CustomerId customer
-      String description
-      Blob requestDocument
-      boolean isComplete
-      boolean isAssessed
-      - ClaimState claimState
+      - UserAccountId accountId
+      - CompanyAccount companyAccount
+      String personName
+      String phoneNumber
+      String personEmailAddress
     }
-    enum ClaimState {
+    Entity CompanyAccount {
+      - CompanyAccountId accountId
+      - CompanyAccountState accountState
+      String accountName
+      String companyEmailAddress
+    }
+    enum CompanyAccountState {
       aggregateLifecycle
-      OPEN, REJECTED, ACCEPTED
+      NEW, APPROVED, REJECTED, DUPLICATE
     }
-    
-    abstract DomainEvent ClaimEvent {
-      long claimId
+    abstract
+    DomainEvent AccountEvent {
+      - UserAccountId userAccountId
       Date timestamp
     }
-    DomainEvent ClaimSubmitted extends ClaimEvent
-    DomainEvent ClaimAccepted extends ClaimEvent
-    DomainEvent ClaimRejected extends ClaimEvent
+    DomainEvent InitiatedAccountCreation extends AccountEvent
+    DomainEvent UserAccountUpdated extends AccountEvent {
+      String personName
+      String personEmailAddress
+    }
   }
 }
+
+BoundedContext ServiceRequestContext
