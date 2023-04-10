@@ -25,10 +25,7 @@ BoundedContext AccountsContext {
   implementationTechnology = "grpc"
   Application {
     Service AccountsService {
-      void InitiateLogin(@LoginRequest loginRequest);
-    }
-    Command InitiateLogin {
-      String phoneNumber
+      @LoginResponse initiateLogin(@LoginRequest loginRequest);
     }
     Command SubmitOTPAfterPhoneNumber {
       String phoneNumber
@@ -54,7 +51,7 @@ BoundedContext AccountsContext {
     Command LogUserLogin {
       String phoneNumber
     }
-    Event SentOTP {
+    Event OTPSent {
       String phoneNumber
       String otp
     }
@@ -74,7 +71,7 @@ BoundedContext AccountsContext {
     }
     Flow NewUserFlow {
       // Send OTP on login
-      command InitiateLogin emits event SentOTP
+      operation initiateLogin emits event OTPSent
       // Login/Signup flow 
       command SubmitOTPAfterPhoneNumber emits event OTPVerified O NewUserOTPVerified
       event OTPVerified triggers command LogUserLogin
@@ -88,6 +85,11 @@ BoundedContext AccountsContext {
   Aggregate Accounts {
     ValueObject LoginRequest {
       String phoneNumber
+    }
+    ValueObject LoginResponse {
+      String phoneNumber
+      String nonce
+      String token
     }
     ValueObject UserAccountId {
       String id
